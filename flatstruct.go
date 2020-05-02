@@ -56,6 +56,7 @@ func CompNRowsCols(s interface{}) (nrows, ncols int) {
 }
 
 // Flatten TODO
+// TODO Order headers by nesting depth
 func Flatten(heaaderBase string, s interface{}) (headers []string, rows [][]string, err error) {
 	// TODO error if headerBase starts with number or is not valid Go identifier
 	sValue := reflect.ValueOf(s)

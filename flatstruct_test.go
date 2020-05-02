@@ -143,20 +143,60 @@ func TestNestedStruct(t *testing.T) {
 		C  string `json:"c"`
 		D  string `json:"d"`
 	}
-	structured := ABCD{
-		AB: AB{
-			A: "aval",
-			B: "bval",
-		},
-		C: "cval",
-		D: "dval",
-	}
-	flattened := [][]string{
-		{"myBase.ab.a", "myBase.ab.b", "myBase.c", "myBase.d"},
-		{`"aval"`, `"bval"`, `"cval"`, `"dval"`},
-	}
-	headerBase := "myBase"
-	flatUnflatTest(t, structured, flattened, headerBase, "Flatten flat stuct value with nested struct value with nested struct value", "Should be flattened flat struct value", "Flatten flat stuct value with nested struct value", "Should be unflattened flat struct value with nested struct value")
+	t.Run("Simple nested struct", func(t *testing.T) {
+		structured := ABCD{
+			AB: AB{
+				A: "aval",
+				B: "bval",
+			},
+			C: "cval",
+			D: "dval",
+		}
+		flattened := [][]string{
+			{"myBase.ab.a", "myBase.ab.b", "myBase.c", "myBase.d"},
+			{`"aval"`, `"bval"`, `"cval"`, `"dval"`},
+		}
+		headerBase := "myBase"
+		flatUnflatTest(t, structured, flattened, headerBase, "Flatten flat stuct value with nested struct value with nested struct value", "Should be flattened flat struct value", "Flatten flat stuct value with nested struct value", "Should be unflattened flat struct value with nested struct value")
+	})
+	t.Run("More complicated nested struct", func(t *testing.T) {
+		type GH struct {
+			G int  `json:"g"`
+			H bool `json:"h"`
+		}
+		type FGH struct {
+			F  string `json:"f"`
+			GH GH     `json:"gh"`
+		}
+		type ABCDEFGH struct {
+			E    string `json:"e"`
+			ABCD ABCD   `json:"abcd"`
+			FGH  FGH    `json:"fgh"`
+		}
+		structured := ABCDEFGH{
+			FGH: FGH{
+				F: "fval",
+				GH: GH{
+					G: 987,
+					H: true,
+				},
+			},
+			ABCD: ABCD{
+				AB: AB{
+					A: "aval",
+					B: "bval",
+				},
+				C: "cval",
+				D: "dval",
+			},
+		}
+		flattened := [][]string{
+			{"myBase.e", "myBase.abcd.ab.a", "myBase.abcd.ab.b", "myBase.abcd.c", "myBase.abcd.d", "myBase.fgh.f", "myBase.fgh.gh.g", "myBase.fgh.gh.h"},
+			{"\"\"", "\"aval\"", "\"bval\"", "\"cval\"", "\"dval\"", "\"fval\"", "987", "true"},
+		}
+		headerBase := "myBase"
+		flatUnflatTest(t, structured, flattened, headerBase, "Flatten flat stuct value ABCDEFG", "Should be flattened flat ABCDEFG", "Unflatten flat ABCDEFG", "Should be unflattened flat ABCDEFG")
+	})
 }
 
 func TestSlice(t *testing.T) {
