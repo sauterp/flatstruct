@@ -14,6 +14,7 @@ encode maps as JSON
 */
 
 // CompNRowsCols computes the number of rows and columns necessary to represent object s in a table.
+// TODO test
 func CompNRowsCols(s interface{}) (nrows, ncols int) {
 	nrows = 0
 	ncols = 0
@@ -29,7 +30,9 @@ func CompNRowsCols(s interface{}) (nrows, ncols int) {
 
 		for i := 0; i < sLen; i++ {
 			fnrows, fncols := CompNRowsCols(sValue.Interface().([]interface{})[i])
-			nrows += fnrows
+			if nrows < fnrows {
+				nrows = fnrows
+			}
 			ncols += fncols
 		}
 

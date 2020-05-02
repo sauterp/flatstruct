@@ -255,3 +255,11 @@ func TestStructWithTwoSlices(t *testing.T) {
 		}
 	})
 }
+
+func TestMap(t *testing.T) {
+	// TODO
+}
+
+func TestInterface(t *testing.T) {
+	// TODO
+}
