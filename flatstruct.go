@@ -135,3 +135,8 @@ func Flatten(heaaderBase string, s interface{}) (headers []string, rows [][]stri
 
 	return headers, rows, nil
 }
+
+func Unflatten(f [][]string, s interface{}) error {
+
+	return nil
+}
