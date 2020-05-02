@@ -52,13 +52,20 @@ func testObjEq(t *testing.T, should, is interface{}) bool {
 	return true
 }
 
+func checkBaseHeader(t *testing.T, should, is string) {
+	if should != is {
+		t.Errorf("base header mismatch:\n\nshould:\n\t%s\nis:\n\t%s\n", should, is)
+	}
+}
+
 func TestEmptyStruct(t *testing.T) {
 	type Empty struct{}
 	flattened := [][]string{{}}
+	headerBase := "myBase"
 
 	t.Run("Flatten empty", func(t *testing.T) {
 		var s Empty
-		myHeaders, myRows, err := Flatten("myBase", s)
+		myHeaders, myRows, err := Flatten(headerBase, s)
 		if err != nil {
 			// TODO
 		}
@@ -70,7 +77,7 @@ func TestEmptyStruct(t *testing.T) {
 
 	t.Run("Unflatten empty", func(t *testing.T) {
 		var s Empty
-		err := Unflatten(flattened, &s)
+		myHeaderBase, err := Unflatten(flattened, &s)
 		if err != nil {
 			// TODO
 		}
@@ -78,6 +85,7 @@ func TestEmptyStruct(t *testing.T) {
 		if !testObjEq(t, sExpect, s) {
 			t.Errorf("Should be unflattened empty")
 		}
+		checkBaseHeader(t, headerBase, myHeaderBase)
 	})
 }
 
@@ -95,8 +103,10 @@ func TestFlatStruct(t *testing.T) {
 		{"myBase.a", "myBase.b"},
 		{`"aval"`, `"bval"`},
 	}
+	headerBase := "myBase"
+
 	t.Run("Flatten flat stuct value", func(t *testing.T) {
-		myHeaders, myRows, err := Flatten("myBase", structured)
+		myHeaders, myRows, err := Flatten(headerBase, structured)
 		if err != nil {
 			// TODO
 		}
@@ -109,7 +119,7 @@ func TestFlatStruct(t *testing.T) {
 
 	t.Run("Flatten flat stuct value", func(t *testing.T) {
 		var myUnflattened AB
-		err := Unflatten(flattened, &myUnflattened)
+		myHeaderBase, err := Unflatten(flattened, &myUnflattened)
 		if err != nil {
 			// TODO
 		}
@@ -117,6 +127,7 @@ func TestFlatStruct(t *testing.T) {
 		if !testObjEq(t, structured, myUnflattened) {
 			t.Errorf("Should be unflattened flat struct value")
 		}
+		checkBaseHeader(t, headerBase, myHeaderBase)
 	})
 }
 

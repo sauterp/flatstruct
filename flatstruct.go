@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 )
 
 /* documentation notes
@@ -56,6 +57,7 @@ func CompNRowsCols(s interface{}) (nrows, ncols int) {
 
 // Flatten TODO
 func Flatten(heaaderBase string, s interface{}) (headers []string, rows [][]string, err error) {
+	// TODO error if headerBase starts with number or is not valid Go identifier
 	sValue := reflect.ValueOf(s)
 	sType := reflect.TypeOf(s)
 	switch sValue.Kind() {
@@ -84,6 +86,8 @@ func Flatten(heaaderBase string, s interface{}) (headers []string, rows [][]stri
 	case reflect.Struct:
 		nFields := sType.NumField()
 		for i := 0; i < nFields; i++ {
+			// TODO Use strings.Split to ignore tag options
+			// https://stackoverflow.com/questions/55879028/golang-get-structs-field-name-by-json-tag
 			tag := sType.Field(i).Tag.Get("json")
 			newheaaderBase := fmt.Sprintf("%s.%s", heaaderBase, tag)
 
@@ -136,7 +140,59 @@ func Flatten(heaaderBase string, s interface{}) (headers []string, rows [][]stri
 	return headers, rows, nil
 }
 
-func Unflatten(f [][]string, s interface{}) error {
+// TODO what happens if we don't find the field tag?
+func getFieldIndexByTag(t reflect.Type, tag string) int {
+	for f := 0; f < t.NumField(); f++ {
+		if t.Field(f).Tag.Get("json") == tag {
+			return f
+		}
+	}
+	return -1
+}
 
-	return nil
+// Unflatten TODO
+func Unflatten(f [][]string, s interface{}) (headerBase string, err error) {
+	sValue := reflect.ValueOf(s).Elem()
+	sType := reflect.TypeOf(s).Elem()
+
+	headers := f[0]
+	rows := f[1:]
+	if headers[0] == "0" {
+		// headers[0] is a slice index
+		for r := 0; r < len(rows); r++ {
+			// build slice
+		}
+	} else {
+		// headers[0] is a struct field
+		// build struct value
+
+		prevBase := ""
+		for h := 0; h < len(headers); h++ {
+			split := strings.Split(headers[h], ".")
+			fieldTag := split[len(split)-1]
+			base := headers[h][:len(headers[h])-len(fieldTag)-1]
+			if h > 0 && base != prevBase {
+				// this is not a basic type value field
+				// recurse
+			}
+			fieldIndex := getFieldIndexByTag(sType, fieldTag)
+			err := json.Unmarshal([]byte(rows[0][h]), sValue.Field(fieldIndex).Addr().Interface())
+			if err != nil {
+				// TODO
+				panic(err)
+			}
+			prevBase = base
+		}
+	}
+	headerBase = strings.SplitN(headers[0], ".", 2)[0]
+	switch sValue.Kind() {
+	case reflect.Slice:
+
+	case reflect.Struct:
+
+	default:
+
+	}
+
+	return headerBase, nil
 }
