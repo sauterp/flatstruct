@@ -1,6 +1,7 @@
 package flatstruct
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 )
@@ -51,20 +52,83 @@ func CompNRowsCols(s interface{}) (nrows, ncols int) {
 }
 
 // Flatten TODO
-func Flatten(s interface{}) [][]string {
-	var flat [][]string
-	sv := reflect.ValueOf(s)
-	fmt.Println(sv)
+func Flatten(heaaderBase string, s interface{}) (headers []string, rows [][]string, err error) {
+	sValue := reflect.ValueOf(s)
+	sType := reflect.TypeOf(s)
+	switch sValue.Kind() {
+	case reflect.Slice:
+		// column for slice indices
+		headers = append(headers, "0")
+		var newHeaders []string
+		for i := 0; i < sValue.Len(); i++ {
+			var newRows [][]string
+			var err error
+			newHeaders, newRows, err = Flatten(heaaderBase, sValue.Index(i).Interface())
+			if err != nil {
+				// TODO
+			}
+			iJSON, err := json.Marshal(i)
+			if err != nil {
+				// TODO
+			}
+			for r := 0; r < len(newRows); r++ {
+				newRows[r] = append([]string{string(iJSON)}, newRows[r]...)
+			}
+			rows = append(rows, newRows...)
+		}
+		headers = append(headers, newHeaders...)
 
-	flat = append(flat, make([]string, 0))
-	flat = append(flat, make([]string, 0))
-	sf := reflect.TypeOf(s)
-	for i := 0; i < sf.NumField(); i++ {
-		val := reflect.ValueOf(s).Field(i)
-		t := sf.Field(i).Tag.Get("json")
-		fmt.Println("t ", t)
-		flat[0] = append(flat[0], t)
-		flat[1] = append(flat[1], val.String())
+	case reflect.Struct:
+		nFields := sType.NumField()
+		for i := 0; i < nFields; i++ {
+			tag := sType.Field(i).Tag.Get("json")
+			newheaaderBase := fmt.Sprintf("%s.%s", heaaderBase, tag)
+
+			fieldVal := sValue.Field(i)
+			newHeaders, newRows, err := Flatten(newheaaderBase, fieldVal.Interface())
+			if err != nil {
+				// TODO
+			}
+
+			rowsLen := len(rows)
+			newRowsLen := len(newRows)
+			var maxLen int
+			var tableToFill *[][]string
+			if rowsLen > newRowsLen {
+				maxLen = rowsLen
+				tableToFill = &newRows
+			} else {
+				maxLen = newRowsLen
+				tableToFill = &rows
+			}
+			lenTableToFill := len(*tableToFill)
+			emptyRowsToAdd := maxLen - lenTableToFill
+			var emptyRowLen int
+			if lenTableToFill == 0 {
+				emptyRowLen = 0
+			} else {
+				emptyRowLen = len((*tableToFill)[0])
+			}
+			for r := 0; r < emptyRowsToAdd; r++ {
+				*tableToFill = append(*tableToFill, make([]string, emptyRowLen))
+			}
+			for r := 0; r < maxLen; r++ {
+				rows[r] = append(rows[r], newRows[r]...)
+			}
+
+			headers = append(headers, newHeaders...)
+		}
+
+	default:
+		headers = []string{heaaderBase}
+
+		bytes, err := json.Marshal(sValue.Interface())
+		if err != nil {
+			// TODO
+		}
+		rows = [][]string{{string(bytes)}}
+
 	}
-	return flat
+
+	return headers, rows, nil
 }
