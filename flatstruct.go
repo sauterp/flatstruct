@@ -152,6 +152,11 @@ func getFieldIndexByTag(t reflect.Type, tag string) int {
 
 // Unflatten TODO
 func Unflatten(f [][]string, s interface{}) (headerBase string, err error) {
+	if len(f) < 1 || len(f[0]) < 1 {
+		// TODO is this correct?
+		return "", nil
+	}
+
 	sValue := reflect.ValueOf(s).Elem()
 	sType := reflect.TypeOf(s).Elem()
 
@@ -166,22 +171,23 @@ func Unflatten(f [][]string, s interface{}) (headerBase string, err error) {
 		// headers[0] is a struct field
 		// build struct value
 
-		prevBase := ""
 		for h := 0; h < len(headers); h++ {
 			split := strings.Split(headers[h], ".")
-			fieldTag := split[len(split)-1]
-			base := headers[h][:len(headers[h])-len(fieldTag)-1]
-			if h > 0 && base != prevBase {
-				// this is not a basic type value field
-				// recurse
+			// descend the "type tree" to the leaf pointed to by this header and set its value
+			currentValueNode := sValue
+			currentTypeNode := sType
+			var fieldIndex int
+			for s := 1; s < len(split); s++ {
+				fieldTag := split[s]
+				fieldIndex = getFieldIndexByTag(currentTypeNode, fieldTag)
+				currentValueNode = currentValueNode.Field(fieldIndex)
+				currentTypeNode = currentValueNode.Type()
 			}
-			fieldIndex := getFieldIndexByTag(sType, fieldTag)
-			err := json.Unmarshal([]byte(rows[0][h]), sValue.Field(fieldIndex).Addr().Interface())
+			err := json.Unmarshal([]byte(rows[0][h]), currentValueNode.Addr().Interface())
 			if err != nil {
 				// TODO
 				panic(err)
 			}
-			prevBase = base
 		}
 	}
 	headerBase = strings.SplitN(headers[0], ".", 2)[0]

@@ -85,7 +85,7 @@ func TestEmptyStruct(t *testing.T) {
 		if !testObjEq(t, sExpect, s) {
 			t.Errorf("Should be unflattened empty")
 		}
-		checkBaseHeader(t, headerBase, myHeaderBase)
+		checkBaseHeader(t, "", myHeaderBase)
 	})
 }
 
@@ -126,6 +126,51 @@ func TestFlatStruct(t *testing.T) {
 
 		if !testObjEq(t, structured, myUnflattened) {
 			t.Errorf("Should be unflattened flat struct value")
+		}
+		checkBaseHeader(t, headerBase, myHeaderBase)
+	})
+}
+
+func TestNestedStruct(t *testing.T) {
+	type ABCD struct {
+		AB AB     `json:"ab"`
+		C  string `json:"c"`
+		D  string `json:"d"`
+	}
+	structured := ABCD{
+		AB: AB{
+			A: "aval",
+			B: "bval",
+		},
+		C: "cval",
+		D: "dval",
+	}
+	flattened := [][]string{
+		{"myBase.ab.a", "myBase.ab.b", "myBase.c", "myBase.d"},
+		{`"aval"`, `"bval"`, `"cval"`, `"dval"`},
+	}
+	headerBase := "myBase"
+	t.Run("Flatten flat stuct value with nested struct value with nested struct value", func(t *testing.T) {
+		myHeaders, myRows, err := Flatten(headerBase, structured)
+		if err != nil {
+			// TODO
+		}
+		myFlattened := append([][]string{myHeaders}, myRows...)
+
+		if !testEq(t, flattened, myFlattened) {
+			t.Errorf("Should be flattened flat struct value")
+		}
+	})
+
+	t.Run("Flatten flat stuct value with nested struct value", func(t *testing.T) {
+		var myUnflattened ABCD
+		myHeaderBase, err := Unflatten(flattened, &myUnflattened)
+		if err != nil {
+			// TODO
+		}
+
+		if !testObjEq(t, structured, myUnflattened) {
+			t.Errorf("Should be unflattened flat struct value with nested struct value")
 		}
 		checkBaseHeader(t, headerBase, myHeaderBase)
 	})
