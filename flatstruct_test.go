@@ -2,6 +2,7 @@ package flatstruct
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -94,6 +95,35 @@ type AB struct {
 	B string `json:"b"`
 }
 
+func flatUnflatTest(t *testing.T, structured interface{}, flattened [][]string, headerBase, flatTestName, flatErr, unflatTestName, unflatErr string) {
+	t.Run(flatTestName, func(t *testing.T) {
+		myHeaders, myRows, err := Flatten(headerBase, structured)
+		if err != nil {
+			// TODO
+		}
+		myFlattened := append([][]string{myHeaders}, myRows...)
+
+		if !testEq(t, flattened, myFlattened) {
+			t.Errorf(flatErr)
+		}
+	})
+
+	t.Run(unflatTestName, func(t *testing.T) {
+		// create a pointer to an empty instance of structured to be filled
+		myUnflattened := reflect.New(reflect.TypeOf(structured))
+		myHeaderBase, err := Unflatten(flattened, myUnflattened.Interface())
+		//myHeaderBase, err := Unflatten(flattened, &emptyStructured)
+		if err != nil {
+			// TODO
+		}
+
+		if !testObjEq(t, structured, myUnflattened.Elem().Interface()) {
+			t.Errorf(unflatErr)
+		}
+		checkBaseHeader(t, headerBase, myHeaderBase)
+	})
+}
+
 func TestFlatStruct(t *testing.T) {
 	structured := AB{
 		A: "aval",
@@ -104,31 +134,7 @@ func TestFlatStruct(t *testing.T) {
 		{`"aval"`, `"bval"`},
 	}
 	headerBase := "myBase"
-
-	t.Run("Flatten flat stuct value", func(t *testing.T) {
-		myHeaders, myRows, err := Flatten(headerBase, structured)
-		if err != nil {
-			// TODO
-		}
-		myFlattened := append([][]string{myHeaders}, myRows...)
-
-		if !testEq(t, flattened, myFlattened) {
-			t.Errorf("Should be flattened flat struct value")
-		}
-	})
-
-	t.Run("Flatten flat stuct value", func(t *testing.T) {
-		var myUnflattened AB
-		myHeaderBase, err := Unflatten(flattened, &myUnflattened)
-		if err != nil {
-			// TODO
-		}
-
-		if !testObjEq(t, structured, myUnflattened) {
-			t.Errorf("Should be unflattened flat struct value")
-		}
-		checkBaseHeader(t, headerBase, myHeaderBase)
-	})
+	flatUnflatTest(t, structured, flattened, headerBase, "Flatten flat stuct value", "Should be flattened flat struct value", "Flatten flat stuct value", "Should be unflattened flat struct value")
 }
 
 func TestNestedStruct(t *testing.T) {
@@ -150,30 +156,7 @@ func TestNestedStruct(t *testing.T) {
 		{`"aval"`, `"bval"`, `"cval"`, `"dval"`},
 	}
 	headerBase := "myBase"
-	t.Run("Flatten flat stuct value with nested struct value with nested struct value", func(t *testing.T) {
-		myHeaders, myRows, err := Flatten(headerBase, structured)
-		if err != nil {
-			// TODO
-		}
-		myFlattened := append([][]string{myHeaders}, myRows...)
-
-		if !testEq(t, flattened, myFlattened) {
-			t.Errorf("Should be flattened flat struct value")
-		}
-	})
-
-	t.Run("Flatten flat stuct value with nested struct value", func(t *testing.T) {
-		var myUnflattened ABCD
-		myHeaderBase, err := Unflatten(flattened, &myUnflattened)
-		if err != nil {
-			// TODO
-		}
-
-		if !testObjEq(t, structured, myUnflattened) {
-			t.Errorf("Should be unflattened flat struct value with nested struct value")
-		}
-		checkBaseHeader(t, headerBase, myHeaderBase)
-	})
+	flatUnflatTest(t, structured, flattened, headerBase, "Flatten flat stuct value with nested struct value with nested struct value", "Should be flattened flat struct value", "Flatten flat stuct value with nested struct value", "Should be unflattened flat struct value with nested struct value")
 }
 
 func TestSlice(t *testing.T) {
