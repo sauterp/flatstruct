@@ -163,17 +163,46 @@ func Unflatten(f [][]string, s interface{}) (headerBase string, err error) {
 
 	headers := f[0]
 	rows := f[1:]
-	if headers[0] == "0" {
-		// headers[0] is a slice index
-		for r := 0; r < len(rows); r++ {
-			// build slice
-		}
-	} else {
-		// headers[0] is a struct field
-		// build struct value
 
-		for h := 0; h < len(headers); h++ {
-			split := strings.Split(headers[h], ".")
+	for h := 0; h < len(headers); h++ {
+		// TODO support unordered slices
+		header := headers[h]
+		// TODO proper way to label the index in the headers
+		isSliceIndex := header[:2] == "[]"
+		if isSliceIndex {
+			header = header[2:]
+			// headers[0] is a slice index
+			sliceLen := 0
+			for r := 0; r < len(rows); r++ {
+				// build slice
+				index := rows[r][0]
+				if index == "" {
+					// slice is empty or has no more elemtns
+					break
+				} else {
+					var i int
+					err := json.Unmarshal([]byte(index), &i)
+					if err != nil {
+						// TODO
+					}
+					if i > sliceLen {
+						sliceLen = i
+					}
+				}
+			}
+			sliceLen++ // for correct length
+		}
+
+		// check headerBase
+		currentHeaderBase := strings.SplitN(header, ".", 2)[0]
+		if headerBase == "" {
+			headerBase = currentHeaderBase
+		} else if currentHeaderBase != headerBase {
+			// TODO
+		}
+
+		if !isSliceIndex {
+			split := strings.Split(header, ".")
 			// descend the "type tree" to the leaf pointed to by this header and set its value
 			currentValueNode := sValue
 			currentTypeNode := sType
@@ -184,14 +213,32 @@ func Unflatten(f [][]string, s interface{}) (headerBase string, err error) {
 				currentValueNode = currentValueNode.Field(fieldIndex)
 				currentTypeNode = currentValueNode.Type()
 			}
-			err := json.Unmarshal([]byte(rows[0][h]), currentValueNode.Addr().Interface())
-			if err != nil {
-				// TODO
-				panic(err)
+			if len(rows) > 1 && rows[1][h] != "" {
+				// this column is part of a slice
+				for r := 0; r < len(rows); r++ {
+					// TODO test whether empty values are handeled correctly
+					rowEl := rows[r][h]
+					if rowEl != "" {
+						currentValueNode = reflect.Append(currentValueNode, reflect.New(currentTypeNode.Elem()))
+						err := json.Unmarshal([]byte(rowEl), currentValueNode.Addr().Index(r).Interface())
+						if err != nil {
+							// TODO
+							panic(err)
+						}
+					} else {
+						break
+					}
+				}
+			} else {
+				err := json.Unmarshal([]byte(rows[0][h]), currentValueNode.Addr().Interface())
+				if err != nil {
+					// TODO
+					panic(err)
+				}
 			}
 		}
 	}
-	headerBase = strings.SplitN(headers[0], ".", 2)[0]
+
 	switch sValue.Kind() {
 	case reflect.Slice:
 
