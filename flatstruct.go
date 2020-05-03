@@ -211,6 +211,28 @@ func getFieldIndexByTag(t reflect.Type, tag string) int {
 	return -1
 }
 
+// DescendTypeTree TODO
+// TODO document sValue needs to be pointer value
+func DescendTypeTree(sValue reflect.Value, sType reflect.Type, header string) (reflect.Value, reflect.Type) {
+	split := strings.Split(header, ".")
+	// descend the "type tree" to the leaf pointed to by this header and set its value
+	currentValueNode := sValue
+	currentTypeNode := sType
+	var fieldIndex int
+	for s := 1; s < len(split); s++ {
+		isSlice := sType.Kind() == reflect.Slice
+		if isSlice {
+			currentTypeNode = currentTypeNode.Elem()
+			currentValueNode = currentValueNode.Elem()
+		}
+		fieldTag := split[s]
+		fieldIndex = getFieldIndexByTag(currentTypeNode, fieldTag)
+		currentValueNode = currentValueNode.Field(fieldIndex)
+		currentTypeNode = currentValueNode.Type()
+	}
+	return currentValueNode, currentTypeNode
+}
+
 // Unflatten TODO
 func Unflatten(f [][]string, s interface{}) (headerBase string, err error) {
 	if len(f) < 1 || len(f[0]) < 1 {
@@ -231,6 +253,7 @@ func Unflatten(f [][]string, s interface{}) (headerBase string, err error) {
 		isSliceIndex := header[:2] == "[]"
 		if isSliceIndex {
 			header = header[2:]
+			currentValueNode, currentTypeNode := DescendTypeTree(sValue, sType, header[2:])
 			// headers[0] is a slice index
 			sliceLen := 0
 			for r := 0; r < len(rows); r++ {
@@ -251,6 +274,20 @@ func Unflatten(f [][]string, s interface{}) (headerBase string, err error) {
 				}
 			}
 			sliceLen++ // for correct length
+
+			currentValueNode.Set(reflect.MakeSlice(currentTypeNode, sliceLen, sliceLen))
+
+			currentHeader := headers[h]
+			currentHeaderLen := len(currentHeader)
+			for hh := 0; hh < len(headers); hh++ {
+				if hh == h {
+					continue
+				}
+				hhHeader := headers[hh]
+				if len(hhHeader) >= currentHeaderLen && hhHeader[:currentHeaderLen] == currentHeader {
+					headers[hh] = hhHeader[2:] // cut away the [] at the beginning
+				}
+			}
 		}
 
 		// check headerBase
@@ -262,24 +299,14 @@ func Unflatten(f [][]string, s interface{}) (headerBase string, err error) {
 		}
 
 		if !isSliceIndex {
-			split := strings.Split(header, ".")
-			// descend the "type tree" to the leaf pointed to by this header and set its value
-			currentValueNode := sValue
-			currentTypeNode := sType
-			var fieldIndex int
-			for s := 1; s < len(split); s++ {
-				fieldTag := split[s]
-				fieldIndex = getFieldIndexByTag(currentTypeNode, fieldTag)
-				currentValueNode = currentValueNode.Field(fieldIndex)
-				currentTypeNode = currentValueNode.Type()
-			}
+			currentValueNode, currentTypeNode := DescendTypeTree(sValue, sType, header)
 			if len(rows) > 1 && rows[1][h] != "" {
 				// this column is part of a slice
 				for r := 0; r < len(rows); r++ {
 					// TODO test whether empty values are handeled correctly
 					rowEl := rows[r][h]
 					if rowEl != "" {
-						currentValueNode = reflect.Append(currentValueNode, reflect.New(currentTypeNode.Elem()))
+						currentValueNode.Set(reflect.Append(currentValueNode, reflect.New(currentTypeNode.Elem())))
 						err := json.Unmarshal([]byte(rowEl), currentValueNode.Addr().Index(r).Interface())
 						if err != nil {
 							// TODO

@@ -45,7 +45,7 @@ func testEq(t *testing.T, should, is [][]string) bool {
 }
 
 func testObjEq(t *testing.T, should, is interface{}) bool {
-	if should != is {
+	if !reflect.DeepEqual(should, is) {
 		t.Errorf("\nshould: %#v\n\n is: %#v", should, is)
 		return false
 	}
@@ -134,7 +134,7 @@ func TestFlatStruct(t *testing.T) {
 		{`"aval"`, `"bval"`},
 	}
 	headerBase := "myBase"
-	flatUnflatTest(t, structured, flattened, headerBase, "FlattenBegin flat stuct value", "Should be flattened flat struct value", "FlattenBegin flat stuct value", "Should be unflattened flat struct value")
+	flatUnflatTest(t, structured, flattened, headerBase, "Flatten flat stuct value", "Should be flattened flat struct value", "Flatten flat stuct value", "Should be unflattened flat struct value")
 }
 
 func TestNestedStruct(t *testing.T) {
@@ -157,7 +157,7 @@ func TestNestedStruct(t *testing.T) {
 			{`"aval"`, `"bval"`, `"cval"`, `"dval"`},
 		}
 		headerBase := "myBase"
-		flatUnflatTest(t, structured, flattened, headerBase, "FlattenBegin flat stuct value with nested struct value with nested struct value", "Should be flattened flat struct value", "FlattenBegin flat stuct value with nested struct value", "Should be unflattened flat struct value with nested struct value")
+		flatUnflatTest(t, structured, flattened, headerBase, "Flatten flat stuct value with nested struct value with nested struct value", "Should be flattened flat struct value", "Flatten flat stuct value with nested struct value", "Should be unflattened flat struct value with nested struct value")
 	})
 	t.Run("More complicated nested struct", func(t *testing.T) {
 		type GH struct {
@@ -195,12 +195,12 @@ func TestNestedStruct(t *testing.T) {
 			{"\"\"", "\"aval\"", "\"bval\"", "\"cval\"", "\"dval\"", "\"fval\"", "987", "true"},
 		}
 		headerBase := "myBase"
-		flatUnflatTest(t, structured, flattened, headerBase, "FlattenBegin flat stuct value ABCDEFG", "Should be flattened flat ABCDEFG", "Unflatten flat ABCDEFG", "Should be unflattened flat ABCDEFG")
+		flatUnflatTest(t, structured, flattened, headerBase, "Flatten flat struct value ABCDEFG", "Should be flattened flat ABCDEFG", "Unflatten flat ABCDEFG", "Should be unflattened flat ABCDEFG")
 	})
 }
 
 func TestSlice(t *testing.T) {
-	s := []AB{
+	structured := []AB{
 		{
 			A: "1a",
 			B: "1b",
@@ -210,19 +210,21 @@ func TestSlice(t *testing.T) {
 			B: "2b",
 		},
 	}
-	myHeaders, myRows, err := FlattenBegin("myBase", s)
+	myHeaders, myRows, err := FlattenBegin("myBase", structured)
 	if err != nil {
 		// TODO
 	}
 	myFlattened := append([][]string{myHeaders}, myRows...)
-	should := [][]string{
+	flattened := [][]string{
 		{`[]myBase`, "[]myBase.a", "[]myBase.b"},
 		{`0`, `"1a"`, `"1b"`},
 		{`1`, `"2a"`, `"2b"`},
 	}
-	if !testEq(t, should, myFlattened) {
+	if !testEq(t, flattened, myFlattened) {
 		t.Errorf("Should be slice of flat")
 	}
+	headerBase := "myBase"
+	flatUnflatTest(t, structured, flattened, headerBase, "Flatten slice of flat struct values", "Should be flattened slice of AB", "Unflatten slice offlat struct values", "Should be unflattened slice of AB")
 }
 
 func TestSliceOfSlice(t *testing.T) {
