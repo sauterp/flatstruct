@@ -64,7 +64,7 @@ func FlattenSlice(headerBase string, s interface{}) (headers []string, rows [][]
 	for i := 0; i < sValue.Len(); i++ {
 		var newRows [][]string
 		var err error
-		newHeaders, newRows, err = Flatten(headerBase, sValue.Index(i).Interface())
+		newHeaders, newRows, err = FlattenBegin(headerBase, sValue.Index(i).Interface())
 		if err != nil {
 			// TODO
 		}
