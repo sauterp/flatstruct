@@ -64,9 +64,9 @@ func TestEmptyStruct(t *testing.T) {
 	flattened := [][]string{{}}
 	headerBase := "myBase"
 
-	t.Run("Flatten empty", func(t *testing.T) {
+	t.Run("FlattenBegin empty", func(t *testing.T) {
 		var s Empty
-		myHeaders, myRows, err := Flatten(headerBase, s)
+		myHeaders, myRows, err := FlattenBegin(headerBase, s)
 		if err != nil {
 			// TODO
 		}
@@ -97,7 +97,7 @@ type AB struct {
 
 func flatUnflatTest(t *testing.T, structured interface{}, flattened [][]string, headerBase, flatTestName, flatErr, unflatTestName, unflatErr string) {
 	t.Run(flatTestName, func(t *testing.T) {
-		myHeaders, myRows, err := Flatten(headerBase, structured)
+		myHeaders, myRows, err := FlattenBegin(headerBase, structured)
 		if err != nil {
 			// TODO
 		}
@@ -134,7 +134,7 @@ func TestFlatStruct(t *testing.T) {
 		{`"aval"`, `"bval"`},
 	}
 	headerBase := "myBase"
-	flatUnflatTest(t, structured, flattened, headerBase, "Flatten flat stuct value", "Should be flattened flat struct value", "Flatten flat stuct value", "Should be unflattened flat struct value")
+	flatUnflatTest(t, structured, flattened, headerBase, "FlattenBegin flat stuct value", "Should be flattened flat struct value", "FlattenBegin flat stuct value", "Should be unflattened flat struct value")
 }
 
 func TestNestedStruct(t *testing.T) {
@@ -157,7 +157,7 @@ func TestNestedStruct(t *testing.T) {
 			{`"aval"`, `"bval"`, `"cval"`, `"dval"`},
 		}
 		headerBase := "myBase"
-		flatUnflatTest(t, structured, flattened, headerBase, "Flatten flat stuct value with nested struct value with nested struct value", "Should be flattened flat struct value", "Flatten flat stuct value with nested struct value", "Should be unflattened flat struct value with nested struct value")
+		flatUnflatTest(t, structured, flattened, headerBase, "FlattenBegin flat stuct value with nested struct value with nested struct value", "Should be flattened flat struct value", "FlattenBegin flat stuct value with nested struct value", "Should be unflattened flat struct value with nested struct value")
 	})
 	t.Run("More complicated nested struct", func(t *testing.T) {
 		type GH struct {
@@ -195,7 +195,7 @@ func TestNestedStruct(t *testing.T) {
 			{"\"\"", "\"aval\"", "\"bval\"", "\"cval\"", "\"dval\"", "\"fval\"", "987", "true"},
 		}
 		headerBase := "myBase"
-		flatUnflatTest(t, structured, flattened, headerBase, "Flatten flat stuct value ABCDEFG", "Should be flattened flat ABCDEFG", "Unflatten flat ABCDEFG", "Should be unflattened flat ABCDEFG")
+		flatUnflatTest(t, structured, flattened, headerBase, "FlattenBegin flat stuct value ABCDEFG", "Should be flattened flat ABCDEFG", "Unflatten flat ABCDEFG", "Should be unflattened flat ABCDEFG")
 	})
 }
 
@@ -210,13 +210,13 @@ func TestSlice(t *testing.T) {
 			B: "2b",
 		},
 	}
-	myHeaders, myRows, err := Flatten("myBase", s)
+	myHeaders, myRows, err := FlattenBegin("myBase", s)
 	if err != nil {
 		// TODO
 	}
 	myFlattened := append([][]string{myHeaders}, myRows...)
 	should := [][]string{
-		{`0`, "myBase.a", "myBase.b"},
+		{`[]myBase`, "[]myBase.a", "[]myBase.b"},
 		{`0`, `"1a"`, `"1b"`},
 		{`1`, `"2a"`, `"2b"`},
 	}
@@ -249,13 +249,13 @@ func TestSliceOfSlice(t *testing.T) {
 			},
 		},
 	}
-	myHeaders, myRows, err := Flatten("myBase", s)
+	myHeaders, myRows, err := FlattenBegin("myBase", s)
 	if err != nil {
 		// TODO
 	}
 	myFlattened := append([][]string{myHeaders}, myRows...)
 	should := [][]string{
-		{`0`, `0`, "myBase.a", "myBase.b"},
+		{`[]myBase`, `[][]myBase`, "[][]myBase.a", "[][]myBase.b"},
 		{`0`, `0`, `"11a"`, `"11b"`},
 		{`0`, `1`, `"12a"`, `"12b"`},
 		{`1`, `0`, `"21a"`, `"21b"`},
@@ -307,13 +307,13 @@ func TestStructWithTwoSlices(t *testing.T) {
 				},
 			},
 		}
-		myHeaders, myRows, err := Flatten("myBase", s)
+		myHeaders, myRows, err := FlattenBegin("myBase", s)
 		if err != nil {
 			// TODO
 		}
 		myFlattened := append([][]string{myHeaders}, myRows...)
 		should := [][]string{
-			{"0", "myBase.abs.a", "myBase.abs.b", "0", "myBase.cdes.c", "myBase.cdes.d", "myBase.cdes.e"},
+			{"[]myBase.abs", "[]myBase.abs.a", "[]myBase.abs.b", "[]myBase.cdes", "[]myBase.cdes.c", "[]myBase.cdes.d", "[]myBase.cdes.e"},
 			{"0", "\"1a\"", "\"1b\"", "0", "23", "5.678", "true"},
 			{"1", "\"2a\"", "\"2b\"", "1", "45", "789.123", "false"},
 			{"", "", "", "2", "56", "345.2799", "false"},
@@ -356,13 +356,13 @@ func TestStructWithTwoSlices(t *testing.T) {
 				},
 			},
 		}
-		myHeaders, myRows, err := Flatten("myBase", s)
+		myHeaders, myRows, err := FlattenBegin("myBase", s)
 		if err != nil {
 			// TODO
 		}
 		myFlattened := append([][]string{myHeaders}, myRows...)
 		should := [][]string{
-			{"0", "myBase.abs.a", "myBase.abs.b", "0", "myBase.cdes.c", "myBase.cdes.d", "myBase.cdes.e"},
+			{"[]myBase.abs", "[]myBase.abs.a", "[]myBase.abs.b", "[]myBase.cdes", "[]myBase.cdes.c", "[]myBase.cdes.d", "[]myBase.cdes.e"},
 			{"0", "\"1a\"", "\"1b\"", "0", "23", "5.678", "true"},
 			{"1", "\"2a\"", "\"2b\"", "1", "45", "789.123", "false"},
 			{"2", "\"3a\"", "\"3b\"", "", "", "", ""},

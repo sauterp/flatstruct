@@ -81,22 +81,57 @@ func FlattenSlice(headerBase string, s interface{}) (headers []string, rows [][]
 	return headers, rows, nil
 }
 
+// FlattenStruct TODO
+func FlattenStruct(headerBase string, s interface{}) (headers []string, rows [][]string, err error) {
+	newHeaders, newRows, err := Flatten(headerBase, s)
+	if err != nil {
+		// TODO
+	}
+
+	headers, rows = FillAndAppend(headers, newHeaders, rows, newRows)
+
+	return headers, rows, nil
+}
+
+// FillAndAppend TODO
+func FillAndAppend(headers, newHeaders []string, rows, newRows [][]string) ([]string, [][]string) {
+	rowsLen := len(rows)
+	newRowsLen := len(newRows)
+	var maxLen int
+	var tableToFill *[][]string
+	if rowsLen > newRowsLen {
+		maxLen = rowsLen
+		tableToFill = &newRows
+	} else {
+		maxLen = newRowsLen
+		tableToFill = &rows
+	}
+	lenTableToFill := len(*tableToFill)
+	emptyRowsToAdd := maxLen - lenTableToFill
+	var emptyRowLen int
+	if lenTableToFill == 0 {
+		emptyRowLen = 0
+	} else {
+		emptyRowLen = len((*tableToFill)[0])
+	}
+	for r := 0; r < emptyRowsToAdd; r++ {
+		*tableToFill = append(*tableToFill, make([]string, emptyRowLen))
+	}
+	for r := 0; r < maxLen; r++ {
+		rows[r] = append(rows[r], newRows[r]...)
+	}
+
+	headers = append(headers, newHeaders...)
+
+	return headers, rows
+}
+
 // Flatten TODO
-// TODO Order headers by nesting depth
 func Flatten(headerBase string, s interface{}) (headers []string, rows [][]string, err error) {
 	// TODO error if headerBase starts with number or is not valid Go identifier
 	sValue := reflect.ValueOf(s)
 	sType := reflect.TypeOf(s)
-	switch sValue.Kind() {
-	case reflect.Slice:
-		newHeaders, newRows, err := FlattenSlice("[]"+headerBase, s)
-		if err != nil {
-			// TODO
-		}
-		rows = append(rows, newRows...)
-		headers = append(headers, newHeaders...)
-
-	case reflect.Struct:
+	if sValue.Kind() == reflect.Struct {
 		nFields := sType.NumField()
 		for i := 0; i < nFields; i++ {
 			fieldVal := sValue.Field(i)
@@ -105,62 +140,62 @@ func Flatten(headerBase string, s interface{}) (headers []string, rows [][]strin
 			// https://stackoverflow.com/questions/55879028/golang-get-structs-field-name-by-json-tag
 			tag := sType.Field(i).Tag.Get("json")
 
+			var newHeaders []string
+			var newRows [][]string
 			if fieldVal.Kind() == reflect.Slice {
 				// column for slice indices
 				newHeaderBase := fmt.Sprintf("[]%s.%s", headerBase, tag)
-				newHeaders, newRows, err := FlattenSlice(newHeaderBase, fieldVal.Interface())
-				if err != nil {
-					// TODO
-				}
-				rows = append(rows, newRows...)
-				headers = append(headers, newHeaders...)
+				newHeaders, newRows, err = FlattenSlice(newHeaderBase, fieldVal.Interface())
 			} else {
-				newheaaderBase := fmt.Sprintf("%s.%s", headerBase, tag)
+				newheaderBase := fmt.Sprintf("%s.%s", headerBase, tag)
 
-				newHeaders, newRows, err := Flatten(newheaaderBase, fieldVal.Interface())
-				if err != nil {
-					// TODO
-				}
-
-				rowsLen := len(rows)
-				newRowsLen := len(newRows)
-				var maxLen int
-				var tableToFill *[][]string
-				if rowsLen > newRowsLen {
-					maxLen = rowsLen
-					tableToFill = &newRows
-				} else {
-					maxLen = newRowsLen
-					tableToFill = &rows
-				}
-				lenTableToFill := len(*tableToFill)
-				emptyRowsToAdd := maxLen - lenTableToFill
-				var emptyRowLen int
-				if lenTableToFill == 0 {
-					emptyRowLen = 0
-				} else {
-					emptyRowLen = len((*tableToFill)[0])
-				}
-				for r := 0; r < emptyRowsToAdd; r++ {
-					*tableToFill = append(*tableToFill, make([]string, emptyRowLen))
-				}
-				for r := 0; r < maxLen; r++ {
-					rows[r] = append(rows[r], newRows[r]...)
-				}
-
-				headers = append(headers, newHeaders...)
+				newHeaders, newRows, err = Flatten(newheaderBase, fieldVal.Interface())
 			}
+			if err != nil {
+				// TODO
+			}
+
+			headers, rows = FillAndAppend(headers, newHeaders, rows, newRows)
 		}
+	} else {
+		headers, rows, err = FlattenDefault(headerBase, s)
+	}
+
+	return headers, rows, nil
+}
+
+// FlattenDefault TODO
+func FlattenDefault(headerBase string, s interface{}) (headers []string, rows [][]string, err error) {
+	sValue := reflect.ValueOf(s)
+	headers = []string{headerBase}
+
+	bytes, err := json.Marshal(sValue.Interface())
+	if err != nil {
+		// TODO
+	}
+	rows = [][]string{{string(bytes)}}
+
+	return headers, rows, nil
+}
+
+// FlattenBegin TODO
+// TODO Order headers by nesting depth
+func FlattenBegin(headerBase string, s interface{}) (headers []string, rows [][]string, err error) {
+	// TODO error if headerBase starts with number or is not valid Go identifier
+	sValue := reflect.ValueOf(s)
+	//	sType := reflect.TypeOf(s)
+	switch sValue.Kind() {
+	case reflect.Slice:
+		headers, rows, err = FlattenSlice("[]"+headerBase, s)
+
+	case reflect.Struct:
+		headers, rows, err = Flatten(headerBase, s)
 
 	default:
-		headers = []string{headerBase}
-
-		bytes, err := json.Marshal(sValue.Interface())
-		if err != nil {
-			// TODO
-		}
-		rows = [][]string{{string(bytes)}}
-
+		headers, rows, err = FlattenDefault(headerBase, s)
+	}
+	if err != nil {
+		// TODO
 	}
 
 	return headers, rows, nil
