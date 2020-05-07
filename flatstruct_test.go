@@ -87,6 +87,23 @@ func TestFlatStruct(t *testing.T) {
 	flatUnflatTest(t, structured, flattened, headerBase, "Flatten flat stuct value", "Should be flattened flat struct value", "Flatten flat stuct value", "Should be unflattened flat struct value")
 }
 
+func TestStructWithEmptySlice(t *testing.T) {
+	type WithEmptySlice struct {
+		A          string `json:"a"`
+		EmptySlice []int  `json:"empty_slice"`
+	}
+	structured := WithEmptySlice{
+		A:          "aval",
+		EmptySlice: nil,
+	}
+	flattened := [][]string{
+		{"myBase.a"},
+		{`"aval"`},
+	}
+	headerBase := "myBase"
+	flatUnflatTest(t, structured, flattened, headerBase, "Flatten stuct value with emtpy slice", "Should be flattened struct value with emtpy slice", "Flatten stuct value with emtpy slice", "Should be unflattened struct value with emtpy slice")
+}
+
 func TestNestedStruct(t *testing.T) {
 	type ABCD struct {
 		AB AB     `json:"ab"`

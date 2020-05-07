@@ -58,27 +58,30 @@ func CompNRowsCols(s interface{}) (nrows, ncols int) {
 
 // FlattenSlice TODO
 func FlattenSlice(headerBase string, s interface{}) (headers []string, rows [][]string, err error) {
-	headers = append(headers, headerBase)
-
 	sValue := reflect.ValueOf(s)
-	var newHeaders []string
-	for i := 0; i < sValue.Len(); i++ {
-		var newRows [][]string
-		var err error
-		newHeaders, newRows, err = FlattenBegin(headerBase, sValue.Index(i).Interface())
-		if err != nil {
-			// TODO
+
+	if sValue.Len() > 0 {
+		headers = append(headers, headerBase)
+		var newHeaders []string
+		for i := 0; i < sValue.Len(); i++ {
+			var newRows [][]string
+			var err error
+			newHeaders, newRows, err = FlattenBegin(headerBase, sValue.Index(i).Interface())
+			if err != nil {
+				// TODO
+			}
+			iJSON, err := json.Marshal(i)
+			if err != nil {
+				// TODO
+			}
+			for r := 0; r < len(newRows); r++ {
+				newRows[r] = append([]string{string(iJSON)}, newRows[r]...)
+			}
+			rows = append(rows, newRows...)
 		}
-		iJSON, err := json.Marshal(i)
-		if err != nil {
-			// TODO
-		}
-		for r := 0; r < len(newRows); r++ {
-			newRows[r] = append([]string{string(iJSON)}, newRows[r]...)
-		}
-		rows = append(rows, newRows...)
+		headers = append(headers, newHeaders...)
 	}
-	headers = append(headers, newHeaders...)
+
 	return headers, rows, nil
 }
 
