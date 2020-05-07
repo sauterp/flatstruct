@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 )
 
 /* documentation notes
@@ -131,7 +132,8 @@ func Flatten(headerBase string, s interface{}) (headers []string, rows [][]strin
 	// TODO error if headerBase starts with number or is not valid Go identifier
 	sValue := reflect.ValueOf(s)
 	sType := reflect.TypeOf(s)
-	if sValue.Kind() == reflect.Struct {
+	if sValue.Kind() == reflect.Struct &&
+		sType != reflect.TypeOf(time.Time{}) {
 		nFields := sType.NumField()
 		for i := 0; i < nFields; i++ {
 			fieldVal := sValue.Field(i)
@@ -144,7 +146,9 @@ func Flatten(headerBase string, s interface{}) (headers []string, rows [][]strin
 			var newRows [][]string
 			if fieldVal.Kind() == reflect.Slice {
 				// column for slice indices
-				newHeaderBase := fmt.Sprintf("[]%s.%s", headerBase, tag)
+				// TODO support slice of slice
+				newHeaderBase := fmt.Sprintf("%s.[]%s", headerBase, tag)
+
 				newHeaders, newRows, err = FlattenSlice(newHeaderBase, fieldVal.Interface())
 			} else {
 				newheaderBase := fmt.Sprintf("%s.%s", headerBase, tag)
@@ -169,7 +173,14 @@ func FlattenDefault(headerBase string, s interface{}) (headers []string, rows []
 	sValue := reflect.ValueOf(s)
 	headers = []string{headerBase}
 
-	bytes, err := json.Marshal(sValue.Interface())
+	var bytes []byte
+	var enc interface{}
+	if (sValue == reflect.Value{}) || (sValue.Kind() == reflect.Interface && (sValue.IsNil() || sValue.IsZero())) {
+		enc = nil
+	} else {
+		enc = sValue.Interface()
+	}
+	bytes, err = json.Marshal(enc)
 	if err != nil {
 		// TODO
 	}
@@ -186,6 +197,7 @@ func FlattenBegin(headerBase string, s interface{}) (headers []string, rows [][]
 	//	sType := reflect.TypeOf(s)
 	switch sValue.Kind() {
 	case reflect.Slice:
+		// TODO handle case where slice of slice of slice ... is the first header
 		headers, rows, err = FlattenSlice("[]"+headerBase, s)
 
 	case reflect.Struct:
@@ -211,26 +223,63 @@ func getFieldIndexByTag(t reflect.Type, tag string) int {
 	return -1
 }
 
-// DescendTypeTree TODO
-// TODO document sValue needs to be pointer value
-func DescendTypeTree(sValue reflect.Value, sType reflect.Type, header string) (reflect.Value, reflect.Type) {
-	split := strings.Split(header, ".")
-	// descend the "type tree" to the leaf pointed to by this header and set its value
-	currentValueNode := sValue
-	currentTypeNode := sType
-	var fieldIndex int
-	for s := 1; s < len(split); s++ {
-		isSlice := sType.Kind() == reflect.Slice
-		if isSlice {
-			currentTypeNode = currentTypeNode.Elem()
-			currentValueNode = currentValueNode.Elem()
+// Retrieve TODO
+func Retrieve(sliceVal reflect.Value, index int) reflect.Value {
+	sliceVal = sliceVal.Elem()
+	vLen := sliceVal.Len()
+	if vLen-1 < index {
+		necessaryLen := index - vLen + 1
+		appSlice := reflect.MakeSlice(sliceVal.Type(), necessaryLen, necessaryLen)
+		for i := 0; i < appSlice.Len(); i++ {
+			sliceVal.Set(reflect.Append(sliceVal, appSlice.Index(i)))
 		}
-		fieldTag := split[s]
-		fieldIndex = getFieldIndexByTag(currentTypeNode, fieldTag)
-		currentValueNode = currentValueNode.Field(fieldIndex)
-		currentTypeNode = currentValueNode.Type()
 	}
-	return currentValueNode, currentTypeNode
+	return sliceVal.Index(index).Addr()
+}
+
+// DescendTreeAndEncode TODO
+func DescendTreeAndEncode(s interface{}, header string, sliceIndices []int, rowEl string) {
+	// descend the "type tree" to the leaf pointed to by this header and set its value
+	currentValueNode := reflect.ValueOf(s).Elem()
+	currentTypeNode := currentValueNode.Type()
+
+	split := strings.Split(header, ".")
+	// TODO support slice at base
+
+	sliceIndex := 0
+	for si := 1; si < len(split); si++ {
+		fieldTag := split[si]
+		if len(fieldTag) >= 2 && fieldTag[:2] == "[]" {
+			fieldTag = fieldTag[2:]
+			fieldIndex := getFieldIndexByTag(currentTypeNode, fieldTag)
+			currentValueNode = currentValueNode.Field(fieldIndex)
+			currentValueNode = Retrieve(currentValueNode.Addr(), sliceIndices[sliceIndex])
+			sliceIndex++
+			currentValueNode = currentValueNode.Elem()
+			currentTypeNode = currentValueNode.Type()
+		} else {
+			fieldIndex := getFieldIndexByTag(currentTypeNode, fieldTag)
+			currentValueNode = currentValueNode.Field(fieldIndex)
+			currentTypeNode = currentValueNode.Type()
+		}
+	}
+
+	//encode
+	err := json.Unmarshal([]byte(rowEl), currentValueNode.Addr().Interface())
+	if err != nil {
+		// TODO
+		panic(err)
+	}
+}
+
+// CheckIsSliceIndex TODO
+func CheckIsSliceIndex(header string) bool {
+	split := strings.Split(header, ".")
+	lastEl := split[len(split)-1]
+	if len(lastEl) >= 2 && lastEl[:2] == "[]" {
+		return true
+	}
+	return false
 }
 
 // Unflatten TODO
@@ -240,99 +289,62 @@ func Unflatten(f [][]string, s interface{}) (headerBase string, err error) {
 		return "", nil
 	}
 
-	sValue := reflect.ValueOf(s).Elem()
-	sType := reflect.TypeOf(s).Elem()
-
 	headers := f[0]
 	rows := f[1:]
 
+	// Create slice index map
+	sliceIndexCols := make(map[string]int, 0)
 	for h := 0; h < len(headers); h++ {
-		// TODO support unordered slices
 		header := headers[h]
-		// TODO proper way to label the index in the headers
-		isSliceIndex := header[:2] == "[]"
-		if isSliceIndex {
-			header = header[2:]
-			currentValueNode, currentTypeNode := DescendTypeTree(sValue, sType, header[2:])
-			// headers[0] is a slice index
-			sliceLen := 0
+		if CheckIsSliceIndex(header) {
+			sliceIndexCols[header] = h
+		}
+	}
+
+	for h := 0; h < len(headers); h++ {
+		// lookup index columns
+		var indexCols []int
+		header := headers[h]
+		split := strings.Split(header, ".")
+		base := split[0]
+		for s := 1; s < len(split); s++ {
+			if v, ok := sliceIndexCols[base]; ok {
+				indexCols = append(indexCols, v)
+			}
+			base = base + "." + split[s]
+		}
+
+		if !CheckIsSliceIndex(header) {
 			for r := 0; r < len(rows); r++ {
-				// build slice
-				index := rows[r][0]
-				if index == "" {
-					// slice is empty or has no more elemtns
-					break
-				} else {
-					var i int
-					err := json.Unmarshal([]byte(index), &i)
-					if err != nil {
-						// TODO
-					}
-					if i > sliceLen {
-						sliceLen = i
-					}
-				}
-			}
-			sliceLen++ // for correct length
-
-			currentValueNode.Set(reflect.MakeSlice(currentTypeNode, sliceLen, sliceLen))
-
-			currentHeader := headers[h]
-			currentHeaderLen := len(currentHeader)
-			for hh := 0; hh < len(headers); hh++ {
-				if hh == h {
-					continue
-				}
-				hhHeader := headers[hh]
-				if len(hhHeader) >= currentHeaderLen && hhHeader[:currentHeaderLen] == currentHeader {
-					headers[hh] = hhHeader[2:] // cut away the [] at the beginning
-				}
-			}
-		}
-
-		// check headerBase
-		currentHeaderBase := strings.SplitN(header, ".", 2)[0]
-		if headerBase == "" {
-			headerBase = currentHeaderBase
-		} else if currentHeaderBase != headerBase {
-			// TODO
-		}
-
-		if !isSliceIndex {
-			currentValueNode, currentTypeNode := DescendTypeTree(sValue, sType, header)
-			if len(rows) > 1 && rows[1][h] != "" {
-				// this column is part of a slice
-				for r := 0; r < len(rows); r++ {
-					// TODO test whether empty values are handeled correctly
-					rowEl := rows[r][h]
-					if rowEl != "" {
-						currentValueNode.Set(reflect.Append(currentValueNode, reflect.New(currentTypeNode.Elem())))
-						err := json.Unmarshal([]byte(rowEl), currentValueNode.Addr().Index(r).Interface())
+				// retrieve slice indices
+				if rows[r][h] != "" {
+					var sliceIndices []int
+					for i := 0; i < len(indexCols); i++ {
+						rowEl := rows[r][indexCols[i]]
+						var index int
+						err := json.Unmarshal([]byte(rowEl), &index)
 						if err != nil {
 							// TODO
 							panic(err)
 						}
-					} else {
-						break
+						sliceIndices = append(sliceIndices, index)
 					}
-				}
-			} else {
-				err := json.Unmarshal([]byte(rows[0][h]), currentValueNode.Addr().Interface())
-				if err != nil {
-					// TODO
-					panic(err)
+
+					// descend tree
+
+					// encode value
+					DescendTreeAndEncode(s, header, sliceIndices, rows[r][h])
 				}
 			}
 		}
 	}
 
-	switch sValue.Kind() {
-	case reflect.Slice:
-
-	case reflect.Struct:
-
-	default:
-
+	firstHeader := headers[0]
+	firstHeaderBase := strings.Split(firstHeader, ".")[0]
+	if CheckIsSliceIndex(firstHeader) {
+		headerBase = firstHeaderBase[2:]
+	} else {
+		headerBase = firstHeaderBase
 	}
 
 	return headerBase, nil
