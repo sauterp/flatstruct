@@ -1,101 +1,18 @@
 package flatstruct
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/sauterp/flatstruct/util"
 )
-
-func testEqStrSlice(t *testing.T, should, is []string) bool {
-	if len(should) != len(is) {
-		return false
-	}
-
-	for i := range should {
-		if should[i] != is[i] {
-			t.Errorf("\nshould[i]: %v\n\n is[i]: %v\n", should[i], is[i])
-			return false
-		}
-	}
-
-	return true
-}
-
-func printTable(table [][]string) string {
-	sTable := ""
-	for _, t := range table {
-		sTable = sTable + "\n" + fmt.Sprintf("%#v", t)
-	}
-	return sTable
-}
-
-func testEq(t *testing.T, should, is [][]string) bool {
-	if len(should) != len(is) {
-		t.Errorf("\nlen(should) != len(is)\n\nlen(should): %d\n\nlen(is): %d\n", len(should), len(is))
-		return false
-	}
-
-	for i := range should {
-		if !testEqStrSlice(t, should[i], is[i]) {
-			t.Errorf("\nshould[i]: %v\n\n is[i]: %v\n", should[i], is[i])
-			return false
-		}
-	}
-
-	return true
-}
-
-func testObjEq(t *testing.T, should, is interface{}) bool {
-	if !reflect.DeepEqual(should, is) {
-		t.Errorf("\nshould: %#v\n\n is: %#v", should, is)
-		return false
-	}
-
-	return true
-}
-
-func checkBaseHeader(t *testing.T, should, is string) {
-	if should != is {
-		t.Errorf("base header mismatch:\n\nshould:\n\t%s\nis:\n\t%s\n", should, is)
-	}
-}
-
-func TestEmptyStruct(t *testing.T) {
-	type Empty struct{}
-	flattened := [][]string{{}}
-	headerBase := "myBase"
-
-	t.Run("FlattenBegin empty", func(t *testing.T) {
-		var s Empty
-		myHeaders, myRows, err := FlattenBegin(headerBase, s)
-		if err != nil {
-			// TODO
-		}
-		myFlattened := append([][]string{myHeaders}, myRows...)
-		if !testEq(t, flattened, myFlattened) {
-			t.Errorf("Should be flattened empty")
-		}
-	})
-
-	t.Run("Unflatten empty", func(t *testing.T) {
-		var s Empty
-		myHeaderBase, err := Unflatten(flattened, &s)
-		if err != nil {
-			// TODO
-		}
-		var sExpect Empty
-		if !testObjEq(t, sExpect, s) {
-			t.Errorf("Should be unflattened empty")
-		}
-		checkBaseHeader(t, "", myHeaderBase)
-	})
-}
 
 type AB struct {
 	A string `json:"a"`
 	B string `json:"b"`
 }
 
+// FlatUnflatTest TODO
 func flatUnflatTest(t *testing.T, structured interface{}, flattened [][]string, headerBase, flatTestName, flatErr, unflatTestName, unflatErr string) {
 	t.Run(flatTestName, func(t *testing.T) {
 		myHeaders, myRows, err := FlattenBegin(headerBase, structured)
@@ -104,7 +21,7 @@ func flatUnflatTest(t *testing.T, structured interface{}, flattened [][]string, 
 		}
 		myFlattened := append([][]string{myHeaders}, myRows...)
 
-		if !testEq(t, flattened, myFlattened) {
+		if !util.CheckEq(t, flattened, myFlattened) {
 			t.Errorf(flatErr)
 		}
 	})
@@ -118,10 +35,42 @@ func flatUnflatTest(t *testing.T, structured interface{}, flattened [][]string, 
 			// TODO
 		}
 
-		if !testObjEq(t, structured, myUnflattened.Elem().Interface()) {
+		if !util.CheckObjEq(t, structured, myUnflattened.Elem().Interface()) {
 			t.Errorf(unflatErr)
 		}
-		checkBaseHeader(t, headerBase, myHeaderBase)
+		util.CheckBaseHeader(t, headerBase, myHeaderBase)
+	})
+}
+
+// TestEmptyStruct TODO
+func TestEmptyStruct(t *testing.T) {
+	type Empty struct{}
+	flattened := [][]string{{}}
+	headerBase := "myBase"
+
+	t.Run("FlattenBegin empty", func(t *testing.T) {
+		var s Empty
+		myHeaders, myRows, err := FlattenBegin(headerBase, s)
+		if err != nil {
+			// TODO
+		}
+		myFlattened := append([][]string{myHeaders}, myRows...)
+		if !util.CheckEq(t, flattened, myFlattened) {
+			t.Errorf("Should be flattened empty")
+		}
+	})
+
+	t.Run("Unflatten empty", func(t *testing.T) {
+		var s Empty
+		myHeaderBase, err := Unflatten(flattened, &s)
+		if err != nil {
+			// TODO
+		}
+		var sExpect Empty
+		if !util.CheckObjEq(t, sExpect, s) {
+			t.Errorf("Should be unflattened empty")
+		}
+		util.CheckBaseHeader(t, "", myHeaderBase)
 	})
 }
 
@@ -323,7 +272,7 @@ func TestStructWithTwoSlices(t *testing.T) {
 			{"1", "\"2a\"", "\"2b\"", "1", "45", "789.123", "false"},
 			{"", "", "", "2", "56", "345.2799", "false"},
 		}
-		if !testEq(t, should, myFlattened) {
+		if !util.CheckEq(t, should, myFlattened) {
 			t.Errorf("Should be two slices where the first one has some empty rows in the table representation")
 		}
 	})
@@ -373,7 +322,7 @@ func TestStructWithTwoSlices(t *testing.T) {
 			{"2", "\"3a\"", "\"3b\"", "", "", "", ""},
 			{"3", "\"4a\"", "\"4b\"", "", "", "", ""},
 		}
-		if !testEq(t, should, myFlattened) {
+		if !util.CheckEq(t, should, myFlattened) {
 			t.Errorf("Should be two slices where the second one has some empty rows in the table representation")
 		}
 	})
