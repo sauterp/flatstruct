@@ -8,55 +8,8 @@ import (
 	"time"
 )
 
-/* documentation notes
-Every Go identifier has to start with a letter, thus we will use numbers for special column headers in our output.
-https://golang.org/ref/spec#identifier
-
-encode maps as JSON
-*/
-
-// CompNRowsCols computes the number of rows and columns necessary to represent object s in a table.
-// TODO test
-func CompNRowsCols(s interface{}) (nrows, ncols int) {
-	nrows = 0
-	ncols = 0
-
-	sValue := reflect.ValueOf(s)
-	switch sValue.Kind() {
-	case reflect.Slice:
-		// one table row for each slice element
-		sLen := sValue.Len()
-		nrows += sLen
-		// extra column for the element indices
-		ncols++
-
-		for i := 0; i < sLen; i++ {
-			fnrows, fncols := CompNRowsCols(sValue.Interface().([]interface{})[i])
-			if nrows < fnrows {
-				nrows = fnrows
-			}
-			ncols += fncols
-		}
-
-	case reflect.Struct:
-		for i := 0; i < sValue.NumField(); i++ {
-			field := sValue.Field(i)
-
-			fnrows, fncols := CompNRowsCols(field.Interface())
-			nrows += fnrows
-			ncols += fncols
-		}
-
-	default:
-		nrows = 0
-		ncols = 1
-
-	}
-
-	return nrows, ncols
-}
-
-// FlattenSlice TODO
+// FlattenSlice flattens a slice. Each slice element will result in one additional row.
+// TODO support slices of slices.
 func FlattenSlice(headerBase string, s interface{}) (headers []string, rows [][]string, err error) {
 	sValue := reflect.ValueOf(s)
 
@@ -66,7 +19,7 @@ func FlattenSlice(headerBase string, s interface{}) (headers []string, rows [][]
 		for i := 0; i < sValue.Len(); i++ {
 			var newRows [][]string
 			var err error
-			newHeaders, newRows, err = FlattenBegin(headerBase, sValue.Index(i).Interface())
+			newHeaders, newRows, err = Flatten(headerBase, sValue.Index(i).Interface())
 			if err != nil {
 				// TODO
 			}
@@ -85,19 +38,7 @@ func FlattenSlice(headerBase string, s interface{}) (headers []string, rows [][]
 	return headers, rows, nil
 }
 
-// FlattenStruct TODO
-func FlattenStruct(headerBase string, s interface{}) (headers []string, rows [][]string, err error) {
-	newHeaders, newRows, err := Flatten(headerBase, s)
-	if err != nil {
-		// TODO
-	}
-
-	headers, rows = FillAndAppend(headers, newHeaders, rows, newRows)
-
-	return headers, rows, nil
-}
-
-// FillAndAppend TODO
+// FillAndAppend ensures that both tables have the same number of rows, by filling up the one with fewer rows. After that it will concatenate them horizontally.
 func FillAndAppend(headers, newHeaders []string, rows, newRows [][]string) ([]string, [][]string) {
 	rowsLen := len(rows)
 	newRowsLen := len(newRows)
@@ -130,9 +71,8 @@ func FillAndAppend(headers, newHeaders []string, rows, newRows [][]string) ([]st
 	return headers, rows
 }
 
-// Flatten TODO
-func Flatten(headerBase string, s interface{}) (headers []string, rows [][]string, err error) {
-	// TODO error if headerBase starts with number or is not valid Go identifier
+// FlattenStruct flattens a struct value. Each struct field will result in one additional column unless that field again is a struct value.
+func FlattenStruct(headerBase string, s interface{}) (headers []string, rows [][]string, err error) {
 	sValue := reflect.ValueOf(s)
 	sType := reflect.TypeOf(s)
 	if sValue.Kind() == reflect.Struct &&
@@ -149,14 +89,13 @@ func Flatten(headerBase string, s interface{}) (headers []string, rows [][]strin
 			var newRows [][]string
 			if fieldVal.Kind() == reflect.Slice {
 				// column for slice indices
-				// TODO support slice of slice
 				newHeaderBase := fmt.Sprintf("%s.[]%s", headerBase, tag)
 
 				newHeaders, newRows, err = FlattenSlice(newHeaderBase, fieldVal.Interface())
 			} else {
 				newheaderBase := fmt.Sprintf("%s.%s", headerBase, tag)
 
-				newHeaders, newRows, err = Flatten(newheaderBase, fieldVal.Interface())
+				newHeaders, newRows, err = FlattenStruct(newheaderBase, fieldVal.Interface())
 			}
 			if err != nil {
 				// TODO
@@ -171,7 +110,7 @@ func Flatten(headerBase string, s interface{}) (headers []string, rows [][]strin
 	return headers, rows, nil
 }
 
-// FlattenDefault TODO
+// FlattenDefault encodes s as a JSON value.
 func FlattenDefault(headerBase string, s interface{}) (headers []string, rows [][]string, err error) {
 	sValue := reflect.ValueOf(s)
 	headers = []string{headerBase}
@@ -192,9 +131,9 @@ func FlattenDefault(headerBase string, s interface{}) (headers []string, rows []
 	return headers, rows, nil
 }
 
-// FlattenBegin TODO
+// Flatten flattens an arbitrary json encodable struct value to a table, where slice elements allocate rows and struct fields allocate columns.
 // TODO Order headers by nesting depth
-func FlattenBegin(headerBase string, s interface{}) (headers []string, rows [][]string, err error) {
+func Flatten(headerBase string, s interface{}) (headers []string, rows [][]string, err error) {
 	// TODO error if headerBase starts with number or is not valid Go identifier
 	sValue := reflect.ValueOf(s)
 	//	sType := reflect.TypeOf(s)
@@ -204,7 +143,7 @@ func FlattenBegin(headerBase string, s interface{}) (headers []string, rows [][]
 		headers, rows, err = FlattenSlice("[]"+headerBase, s)
 
 	case reflect.Struct:
-		headers, rows, err = Flatten(headerBase, s)
+		headers, rows, err = FlattenStruct(headerBase, s)
 
 	default:
 		headers, rows, err = FlattenDefault(headerBase, s)
@@ -217,6 +156,7 @@ func FlattenBegin(headerBase string, s interface{}) (headers []string, rows [][]
 }
 
 // TODO what happens if we don't find the field tag?
+// TODO return error if field is not found.
 func getFieldIndexByTag(t reflect.Type, tag string) int {
 	for f := 0; f < t.NumField(); f++ {
 		if t.Field(f).Tag.Get("json") == tag {
@@ -226,7 +166,7 @@ func getFieldIndexByTag(t reflect.Type, tag string) int {
 	return -1
 }
 
-// Retrieve TODO
+// Retrieve returns a pointer to a slice value. If no corresponding element exists for index, the slice will be appended with zero elements up to that index before returning the element.
 func Retrieve(sliceVal reflect.Value, index int) reflect.Value {
 	sliceVal = sliceVal.Elem()
 	vLen := sliceVal.Len()
@@ -240,7 +180,8 @@ func Retrieve(sliceVal reflect.Value, index int) reflect.Value {
 	return sliceVal.Index(index).Addr()
 }
 
-// DescendTreeAndEncode TODO
+// DescendTreeAndEncode finds the leaf in the struct value s(imagine it like a tree) pointed to by the header and the sliceIndices and encodes the rowEl in that field value.
+// s should be a pointer.
 func DescendTreeAndEncode(s interface{}, header string, sliceIndices []int, rowEl string) {
 	// descend the "type tree" to the leaf pointed to by this header and set its value
 	currentValueNode := reflect.ValueOf(s).Elem()
@@ -275,7 +216,7 @@ func DescendTreeAndEncode(s interface{}, header string, sliceIndices []int, rowE
 	}
 }
 
-// CheckIsSliceIndex TODO
+// CheckIsSliceIndex returns true if the header points to a slice. This is the case if the last field name in the headaer is preceded by '[]'.
 func CheckIsSliceIndex(header string) bool {
 	split := strings.Split(header, ".")
 	lastEl := split[len(split)-1]
@@ -285,7 +226,7 @@ func CheckIsSliceIndex(header string) bool {
 	return false
 }
 
-// Unflatten TODO
+// Unflatten unflattens the table given in f into s. The first row is assumed to contain the headers.
 func Unflatten(f [][]string, s interface{}) (headerBase string, err error) {
 	if len(f) < 1 || len(f[0]) < 1 {
 		// TODO is this correct?
@@ -333,9 +274,6 @@ func Unflatten(f [][]string, s interface{}) (headerBase string, err error) {
 						sliceIndices = append(sliceIndices, index)
 					}
 
-					// descend tree
-
-					// encode value
 					DescendTreeAndEncode(s, header, sliceIndices, rows[r][h])
 				}
 			}

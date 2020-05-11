@@ -12,10 +12,10 @@ type AB struct {
 	B string `json:"b"`
 }
 
-// FlatUnflatTest TODO
+// flatUnflatTest tests whether a value can be flattened and unflattened again retaining the same contents and structure.
 func flatUnflatTest(t *testing.T, structured interface{}, flattened [][]string, headerBase, flatTestName, flatErr, unflatTestName, unflatErr string) {
 	t.Run(flatTestName, func(t *testing.T) {
-		myHeaders, myRows, err := FlattenBegin(headerBase, structured)
+		myHeaders, myRows, err := Flatten(headerBase, structured)
 		if err != nil {
 			// TODO
 		}
@@ -42,15 +42,14 @@ func flatUnflatTest(t *testing.T, structured interface{}, flattened [][]string, 
 	})
 }
 
-// TestEmptyStruct TODO
 func TestEmptyStruct(t *testing.T) {
 	type Empty struct{}
 	flattened := [][]string{{}}
 	headerBase := "myBase"
 
-	t.Run("FlattenBegin empty", func(t *testing.T) {
+	t.Run("Flatten empty", func(t *testing.T) {
 		var s Empty
-		myHeaders, myRows, err := FlattenBegin(headerBase, s)
+		myHeaders, myRows, err := Flatten(headerBase, s)
 		if err != nil {
 			// TODO
 		}
@@ -178,7 +177,7 @@ func TestSlice(t *testing.T) {
 			B: "2b",
 		},
 	}
-	myHeaders, myRows, err := FlattenBegin("myBase", structured)
+	myHeaders, myRows, err := Flatten("myBase", structured)
 	if err != nil {
 		// TODO
 	}
@@ -219,7 +218,7 @@ func TestSliceOfSlice(t *testing.T) {
 			},
 		},
 	}
-	myHeaders, myRows, err := FlattenBegin("myBase", s)
+	myHeaders, myRows, err := Flatten("myBase", s)
 	if err != nil {
 		// TODO
 	}
@@ -278,7 +277,7 @@ func TestStructWithTwoSlices(t *testing.T) {
 				},
 			},
 		}
-		myHeaders, myRows, err := FlattenBegin("myBase", s)
+		myHeaders, myRows, err := Flatten("myBase", s)
 		if err != nil {
 			// TODO
 		}
@@ -327,7 +326,7 @@ func TestStructWithTwoSlices(t *testing.T) {
 				},
 			},
 		}
-		myHeaders, myRows, err := FlattenBegin("myBase", s)
+		myHeaders, myRows, err := Flatten("myBase", s)
 		if err != nil {
 			// TODO
 		}
