@@ -1,3 +1,4 @@
+// Package util provides equality checks useful for writing tests for flatstruct.
 package util
 
 import (

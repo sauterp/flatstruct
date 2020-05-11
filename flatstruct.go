@@ -1,3 +1,4 @@
+// Package flatstruct provides functionality to flatten any JSON encodable Go value into a table and unflatten again. This can be useful to export data from a Go application in the form of a spreadsheet such as Excel or CSV.
 package flatstruct
 
 import (
@@ -21,11 +22,11 @@ func FlattenSlice(headerBase string, s interface{}) (headers []string, rows [][]
 			var err error
 			newHeaders, newRows, err = Flatten(headerBase, sValue.Index(i).Interface())
 			if err != nil {
-				// TODO
+				return nil, nil, err
 			}
 			iJSON, err := json.Marshal(i)
 			if err != nil {
-				// TODO
+				return nil, nil, err
 			}
 			for r := 0; r < len(newRows); r++ {
 				newRows[r] = append([]string{string(iJSON)}, newRows[r]...)
@@ -98,7 +99,7 @@ func FlattenStruct(headerBase string, s interface{}) (headers []string, rows [][
 				newHeaders, newRows, err = FlattenStruct(newheaderBase, fieldVal.Interface())
 			}
 			if err != nil {
-				// TODO
+				return nil, nil, err
 			}
 
 			headers, rows = FillAndAppend(headers, newHeaders, rows, newRows)
@@ -124,7 +125,7 @@ func FlattenDefault(headerBase string, s interface{}) (headers []string, rows []
 	}
 	bytes, err = json.Marshal(enc)
 	if err != nil {
-		// TODO
+		return nil, nil, err
 	}
 	rows = [][]string{{string(bytes)}}
 
@@ -149,7 +150,7 @@ func Flatten(headerBase string, s interface{}) (headers []string, rows [][]strin
 		headers, rows, err = FlattenDefault(headerBase, s)
 	}
 	if err != nil {
-		// TODO
+		return nil, nil, err
 	}
 
 	return headers, rows, nil
@@ -157,13 +158,13 @@ func Flatten(headerBase string, s interface{}) (headers []string, rows [][]strin
 
 // TODO what happens if we don't find the field tag?
 // TODO return error if field is not found.
-func getFieldIndexByTag(t reflect.Type, tag string) int {
+func getFieldIndexByTag(t reflect.Type, tag string) (int, error) {
 	for f := 0; f < t.NumField(); f++ {
 		if t.Field(f).Tag.Get("json") == tag {
-			return f
+			return f, nil
 		}
 	}
-	return -1
+	return 0, fmt.Errorf("Cannot find struct field with tag: %s", tag)
 }
 
 // Retrieve returns a pointer to a slice value. If no corresponding element exists for index, the slice will be appended with zero elements up to that index before returning the element.
@@ -182,7 +183,7 @@ func Retrieve(sliceVal reflect.Value, index int) reflect.Value {
 
 // DescendTreeAndEncode finds the leaf in the struct value s(imagine it like a tree) pointed to by the header and the sliceIndices and encodes the rowEl in that field value.
 // s should be a pointer.
-func DescendTreeAndEncode(s interface{}, header string, sliceIndices []int, rowEl string) {
+func DescendTreeAndEncode(s interface{}, header string, sliceIndices []int, rowEl string) error {
 	// descend the "type tree" to the leaf pointed to by this header and set its value
 	currentValueNode := reflect.ValueOf(s).Elem()
 	currentTypeNode := currentValueNode.Type()
@@ -195,14 +196,20 @@ func DescendTreeAndEncode(s interface{}, header string, sliceIndices []int, rowE
 		fieldTag := split[si]
 		if len(fieldTag) >= 2 && fieldTag[:2] == "[]" {
 			fieldTag = fieldTag[2:]
-			fieldIndex := getFieldIndexByTag(currentTypeNode, fieldTag)
+			fieldIndex, err := getFieldIndexByTag(currentTypeNode, fieldTag)
+			if err != nil {
+				return err
+			}
 			currentValueNode = currentValueNode.Field(fieldIndex)
 			currentValueNode = Retrieve(currentValueNode.Addr(), sliceIndices[sliceIndex])
 			sliceIndex++
 			currentValueNode = currentValueNode.Elem()
 			currentTypeNode = currentValueNode.Type()
 		} else {
-			fieldIndex := getFieldIndexByTag(currentTypeNode, fieldTag)
+			fieldIndex, err := getFieldIndexByTag(currentTypeNode, fieldTag)
+			if err != nil {
+				return err
+			}
 			currentValueNode = currentValueNode.Field(fieldIndex)
 			currentTypeNode = currentValueNode.Type()
 		}
@@ -211,9 +218,9 @@ func DescendTreeAndEncode(s interface{}, header string, sliceIndices []int, rowE
 	//encode
 	err := json.Unmarshal([]byte(rowEl), currentValueNode.Addr().Interface())
 	if err != nil {
-		// TODO
-		panic(err)
+		return err
 	}
+	return nil
 }
 
 // CheckIsSliceIndex returns true if the header points to a slice. This is the case if the last field name in the headaer is preceded by '[]'.
@@ -268,13 +275,15 @@ func Unflatten(f [][]string, s interface{}) (headerBase string, err error) {
 						var index int
 						err := json.Unmarshal([]byte(rowEl), &index)
 						if err != nil {
-							// TODO
-							panic(err)
+							return "", err
 						}
 						sliceIndices = append(sliceIndices, index)
 					}
 
-					DescendTreeAndEncode(s, header, sliceIndices, rows[r][h])
+					err := DescendTreeAndEncode(s, header, sliceIndices, rows[r][h])
+					if err != nil {
+						return "", err
+					}
 				}
 			}
 		}

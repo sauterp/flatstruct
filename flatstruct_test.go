@@ -17,7 +17,7 @@ func flatUnflatTest(t *testing.T, structured interface{}, flattened [][]string, 
 	t.Run(flatTestName, func(t *testing.T) {
 		myHeaders, myRows, err := Flatten(headerBase, structured)
 		if err != nil {
-			// TODO
+			t.Fatal(err)
 		}
 		myFlattened := append([][]string{myHeaders}, myRows...)
 
@@ -32,7 +32,7 @@ func flatUnflatTest(t *testing.T, structured interface{}, flattened [][]string, 
 		myHeaderBase, err := Unflatten(flattened, myUnflattened.Interface())
 		//myHeaderBase, err := Unflatten(flattened, &emptyStructured)
 		if err != nil {
-			// TODO
+			t.Fatal(err)
 		}
 
 		if !util.CheckObjEq(t, structured, myUnflattened.Elem().Interface()) {
@@ -51,7 +51,7 @@ func TestEmptyStruct(t *testing.T) {
 		var s Empty
 		myHeaders, myRows, err := Flatten(headerBase, s)
 		if err != nil {
-			// TODO
+			t.Fatal(err)
 		}
 		myFlattened := append([][]string{myHeaders}, myRows...)
 		if !util.CheckEq(t, flattened, myFlattened) {
@@ -63,7 +63,7 @@ func TestEmptyStruct(t *testing.T) {
 		var s Empty
 		myHeaderBase, err := Unflatten(flattened, &s)
 		if err != nil {
-			// TODO
+			t.Fatal(err)
 		}
 		var sExpect Empty
 		if !util.CheckObjEq(t, sExpect, s) {
@@ -279,7 +279,7 @@ func TestStructWithTwoSlices(t *testing.T) {
 		}
 		myHeaders, myRows, err := Flatten("myBase", s)
 		if err != nil {
-			// TODO
+			t.Fatal(err)
 		}
 		myFlattened := append([][]string{myHeaders}, myRows...)
 		should := [][]string{
@@ -328,7 +328,7 @@ func TestStructWithTwoSlices(t *testing.T) {
 		}
 		myHeaders, myRows, err := Flatten("myBase", s)
 		if err != nil {
-			// TODO
+			t.Fatal(err)
 		}
 		myFlattened := append([][]string{myHeaders}, myRows...)
 		should := [][]string{
